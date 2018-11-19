@@ -1,0 +1,40 @@
+﻿<Window x:Class="visioconverter.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:visioconverter"
+        mc:Ignorable="d"
+        Title="Visio Converter" MinHeight="379.754" Height="379.754" MinWidth="675.34" Width="675.34">
+    <DockPanel Margin="10">
+        <Grid DockPanel.Dock="Top">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Name="btnOpenFiles" 
+                    Click="BtnOpenFiles_Click" 
+                    Grid.Column="0">
+                Select .vsd files
+            </Button>
+            <Button Name="btnSavePath" 
+                    Click="BtnSavePath_Click" 
+                    Grid.Column="1">
+                Select destination folder
+            </Button>
+            <Button Name="btnConvert" 
+                    Click="BtnConvert_Click" 
+                    Grid.Column="2"
+                    PreviewMouseLeftButtonDown="btnConvert_PreviewMouseLeftButtonDown">
+                Convert
+            </Button>
+        </Grid>
+        <TextBox Name="infoBox"
+                 DockPanel.Dock="Top"
+                 IsReadOnly="True"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto" 
+                 TextWrapping="Wrap"
+                 TextChanged="TextListener"/>
+    </DockPanel>
+</Window>

@@ -16,16 +16,21 @@
             <Button Name="btnOpenFiles" 
                     Click="BtnOpenFiles_Click" 
                     Grid.Column="0">
-                Select .vsd files
+                Select files
+            </Button>
+            <Button Name="btnOpenFolder" 
+                    Click="BtnOpenFolder_Click" 
+                    Grid.Column="1">
+                Select folder
             </Button>
             <Button Name="btnSavePath" 
                     Click="BtnSavePath_Click" 
-                    Grid.Column="1">
+                    Grid.Column="2">
                 Select destination folder
             </Button>
             <Button Name="btnConvert" 
                     Click="BtnConvert_Click" 
-                    Grid.Column="2"
+                    Grid.Column="3"
                     PreviewMouseLeftButtonDown="btnConvert_PreviewMouseLeftButtonDown">
                 Convert
             </Button>

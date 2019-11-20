@@ -7,6 +7,9 @@ using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
+using System.ComponentModel;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace visioconverter
 {
@@ -17,6 +20,9 @@ namespace visioconverter
 
         static string[] VSD_FILES = null;
         static string OUTPUT_FILES_PATH = null;
+
+        BackgroundWorker worker = null;
+        
         public MainWindow()
         {
             if (CheckExecution())
@@ -31,6 +37,30 @@ namespace visioconverter
             {
                 InitializeComponent();
             }
+        }
+
+        private void OnContentRendered(object sender, EventArgs e)
+        {
+            worker = new BackgroundWorker
+            {
+                WorkerReportsProgress = true
+            };
+            worker.DoWork += Convert;
+            worker.ProgressChanged += OnProgressChanged;
+            worker.RunWorkerCompleted += OnConversionCompleted;
+        }
+
+        void OnProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            progressBar.Value = e.ProgressPercentage;
+        }
+
+        void OnConversionCompleted(object sender, EventArgs e)
+        {
+            btnOpenFiles.IsEnabled = true;
+            btnOpenFolder.IsEnabled = true;
+            btnSavePath.IsEnabled = true;
+            btnConvert.IsEnabled = true;
         }
 
         // Check if the application is already running
@@ -77,13 +107,13 @@ namespace visioconverter
                 infoBox.AppendText(Environment.NewLine);
                 infoBox.AppendText("------------------------------");
                 infoBox.AppendText(Environment.NewLine);
-                infoBox.AppendText("Files selected: " + VSD_FILES.Length);
+                infoBox.AppendText("Number of files selected: " + VSD_FILES.Length);
                 infoBox.AppendText(Environment.NewLine);
             }
         }
 
         // OutputFolder button handler
-        private void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
+        private async void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
         {
             var openFolderDialog = new CommonOpenFileDialog
             {
@@ -92,11 +122,21 @@ namespace visioconverter
 
             if (openFolderDialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
-                VSD_FILES = GetFolderFiles(openFolderDialog.FileName);
+                // Set progressbar as indeterminate while loading
+                progressBar.IsIndeterminate = true;
+
+                // Load files in a different thread so the UI can is not blocked.
+                VSD_FILES = await Task.Run(() => {
+                    return GetFolderFiles(openFolderDialog.FileName);
+                });
+
+                // Set progrssbar back to normal
+                progressBar.IsIndeterminate = false;
+
                 infoBox.AppendText(Environment.NewLine);
                 infoBox.AppendText("------------------------------");
                 infoBox.AppendText(Environment.NewLine);
-                infoBox.AppendText("Files selected: " + VSD_FILES.Length);
+                infoBox.AppendText("Number of files selected: " + VSD_FILES.Length);
                 infoBox.AppendText(Environment.NewLine);
             }
         }
@@ -132,7 +172,11 @@ namespace visioconverter
         // Convert button handler
         private void BtnConvert_Click(object sender, RoutedEventArgs e)
         {
+            btnOpenFiles.IsEnabled = false;
+            btnOpenFolder.IsEnabled = false;
+            btnSavePath.IsEnabled = false;
             btnConvert.IsEnabled = false;
+            progressBar.Value = 0;
             if (VSD_FILES == null)
             {
                 ShowMessage("Please select at least one file",
@@ -151,9 +195,8 @@ namespace visioconverter
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Warning);
                 if(result == MessageBoxResult.Yes)
-                    Convert();
+                    worker.RunWorkerAsync();
             }
-            btnConvert.IsEnabled = true;
         }
 
         // Create log file containing the exception occurred
@@ -175,13 +218,17 @@ namespace visioconverter
         }
 
         // Start the file conversion
-        private void Convert()
+        private void Convert(object sender, DoWorkEventArgs e)
         {
-            infoBox.AppendText(Environment.NewLine);
-            infoBox.AppendText("------------------------------");
-            infoBox.AppendText(Environment.NewLine);
-            infoBox.AppendText("Starting conversion process");
-            infoBox.AppendText(Environment.NewLine);
+            Application.Current.Dispatcher.Invoke(() => 
+            {
+                infoBox.AppendText(Environment.NewLine);
+                infoBox.AppendText("------------------------------");
+                infoBox.AppendText(Environment.NewLine);
+                infoBox.AppendText("Starting conversion process");
+                infoBox.AppendText(Environment.NewLine);
+                infoBox.AppendText(Environment.NewLine);
+            });
 
             Microsoft.Office.Interop.Visio.InvisibleApp VisioInst = null;
 
@@ -189,6 +236,9 @@ namespace visioconverter
             {
                 // Using COM to call visio to convert the files
                 Type VisioType = Type.GetTypeFromProgID("Visio.InvisibleApp");
+                
+                // Create visio instance to open all the files
+                VisioInst = (Microsoft.Office.Interop.Visio.InvisibleApp)Activator.CreateInstance(VisioType);
 
                 // If an Output Folder was selected, the save to that folder
                 // Otherwise, save in the same location of the source file
@@ -202,57 +252,95 @@ namespace visioconverter
                     SaveLocation = (filePath) => string.Format("{0}\\{1}x", OUTPUT_FILES_PATH, Path.GetFileName(filePath));
                 }
 
-                foreach (String file in VSD_FILES)
+                //foreach (String file in VSD_FILES)
+                for (int i = 0; i < VSD_FILES.Length; i++)
                 {
-                    if (file.Length > 0)
+                    var file = VSD_FILES[i];
+
+                    try
                     {
-                        string openLocation = Path.GetFullPath(file);
-                                            
-                        // VisioInst instances are created in each iteration to avoid RPC server issues
-                        VisioInst = (Microsoft.Office.Interop.Visio.InvisibleApp)Activator.CreateInstance(VisioType);
+                        if (file.Length > 0)
+                        {
+                            string openLocation = Path.GetFullPath(file);
 
-                        infoBox.AppendText(string.Format(openingText, openLocation));
-                        infoBox.AppendText(Environment.NewLine);
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                infoBox.AppendText(string.Format(openingText, openLocation));
+                                infoBox.AppendText(Environment.NewLine);
+                            });
 
-                        // Open .vsd file
-                        var doc = VisioInst.Documents.Open(openLocation);
-                        string saveLocation = SaveLocation(openLocation);
-                        infoBox.AppendText(string.Format(savingText, saveLocation));
-                        infoBox.AppendText(Environment.NewLine);
+                            // Open .vsd file
+                            var doc = VisioInst.Documents.Open(openLocation);
+                            string saveLocation = SaveLocation(openLocation);
 
-                        // Save .vsdx file
-                        doc.SaveAs(saveLocation);
+                            // Add wait time to avoid the "The RPC server is unavailable" exception
+                            Thread.Sleep(1000);
 
-                        // Close document
-                        doc.Close();
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                infoBox.AppendText(string.Format(savingText, saveLocation));
+                                infoBox.AppendText(Environment.NewLine);
+                            });
 
-                        // Close visio instance
-                        VisioInst.Quit();
-                        VisioInst = null;
+                            // Save .vsdx file
+                            doc.SaveAs(saveLocation);
 
-                        infoBox.AppendText("Done!");
-                        infoBox.AppendText(Environment.NewLine);
-                        infoBox.AppendText(Environment.NewLine);
+                            // Close document
+                            doc.Close();
+
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                infoBox.AppendText("Done!");
+                                infoBox.AppendText(Environment.NewLine);
+                                infoBox.AppendText(Environment.NewLine);
+                            });
+                        }
                     }
+                    catch(Exception loopException)
+                    {
+                        CreateLog(loopException.ToString());
+                        String logPath = AppDomain.CurrentDomain.BaseDirectory + "error.log";
+
+                        ShowMessage("An error occurred while while converting this file\nA log file has been created in " + logPath + "\nClick OK to continue.",
+                                    "Error",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Error);
+
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            infoBox.AppendText(Environment.NewLine);
+                            infoBox.AppendText(string.Format("An error occurred while converting this file, please check the logs.")); ;
+                            infoBox.AppendText(Environment.NewLine);
+                            infoBox.AppendText(Environment.NewLine);
+                        });
+                    }
+
+                    (sender as BackgroundWorker).ReportProgress((i + 1) * 100 / VSD_FILES.Length);
                 }
 
-                infoBox.AppendText("All the files were converted!");
-                infoBox.AppendText(Environment.NewLine);
-                infoBox.AppendText("The application can now be closed.");
-                infoBox.AppendText(Environment.NewLine);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    infoBox.AppendText("All the files were converted!");
+                    infoBox.AppendText(Environment.NewLine);
+                    infoBox.AppendText("The application can now be closed.");
+                    infoBox.AppendText(Environment.NewLine);
+                });
             }
-            catch (ArgumentNullException exception)
+            catch (ArgumentNullException)
             {
                 ShowMessage("This application requires Visio to make the conversion.",
                     "Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
 
-                infoBox.AppendText(Environment.NewLine);
-                infoBox.AppendText("------------------------------"); ;
-                infoBox.AppendText(Environment.NewLine);
-                infoBox.AppendText("The conversion process failed."); ;
-                infoBox.AppendText(Environment.NewLine);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    infoBox.AppendText(Environment.NewLine);
+                    infoBox.AppendText("------------------------------"); ;
+                    infoBox.AppendText(Environment.NewLine);
+                    infoBox.AppendText("The conversion process failed."); ;
+                    infoBox.AppendText(Environment.NewLine);
+                });
             }
             catch (Exception exception)
             {
@@ -263,26 +351,34 @@ namespace visioconverter
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
 
-                infoBox.AppendText(Environment.NewLine);
-                infoBox.AppendText("------------------------------"); ;
-                infoBox.AppendText(Environment.NewLine);
-                infoBox.AppendText("The conversion process failed."); ;
-                infoBox.AppendText(Environment.NewLine);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    infoBox.AppendText(Environment.NewLine);
+                    infoBox.AppendText("------------------------------"); ;
+                    infoBox.AppendText(Environment.NewLine);
+                    infoBox.AppendText("The conversion process failed."); ;
+                    infoBox.AppendText(Environment.NewLine);
+                });
             }
             finally
             {
                 // Close visio if an unexpected error occured
                 if (VisioInst != null)
                 {
+                    // Close visio instance
                     VisioInst.Quit();
+                    VisioInst = null;
                 }
             }
 
-            infoBox.AppendText(Environment.NewLine);
-            infoBox.AppendText("------------------------------"); ;
-            infoBox.AppendText(Environment.NewLine);
-            infoBox.AppendText("All tasks finished"); ;
-            infoBox.AppendText(Environment.NewLine);
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                infoBox.AppendText(Environment.NewLine);
+                infoBox.AppendText("------------------------------"); ;
+                infoBox.AppendText(Environment.NewLine);
+                infoBox.AppendText("All tasks finished"); ;
+                infoBox.AppendText(Environment.NewLine);
+            });
 
         }
 
@@ -294,6 +390,11 @@ namespace visioconverter
                 //mouse down event handler.
                 e.Handled = true;
             }
+        }
+
+        public string HelpText
+        {
+            get { return "My Text \n Your Text"; }
         }
     }
 }

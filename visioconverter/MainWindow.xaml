@@ -5,41 +5,60 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:visioconverter"
         mc:Ignorable="d"
-        Title="Visio Converter" MinHeight="379.754" Height="379.754" MinWidth="675.34" Width="675.34">
+        Title="Visio Converter" MinHeight="379.754" Height="379.754" MinWidth="675.34" Width="675.34"
+        ContentRendered="OnContentRendered">
     <DockPanel Margin="10">
         <Grid DockPanel.Dock="Top">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <Button Name="btnOpenFiles" 
                     Click="BtnOpenFiles_Click" 
-                    Grid.Column="0">
-                Select files
+                    Grid.Column="0"
+                    Margin="0,5,5,5">
+                Select input files
             </Button>
             <Button Name="btnOpenFolder" 
                     Click="BtnOpenFolder_Click" 
                     Grid.Column="1">
-                Select folder
+                Select input folder
             </Button>
             <Button Name="btnSavePath" 
                     Click="BtnSavePath_Click" 
                     Grid.Column="2">
-                Select destination folder
+                Select output folder
             </Button>
             <Button Name="btnConvert" 
                     Click="BtnConvert_Click" 
                     Grid.Column="3"
+                    Margin="5,5,0,5"
                     PreviewMouseLeftButtonDown="btnConvert_PreviewMouseLeftButtonDown">
                 Convert
             </Button>
+        </Grid>
+        <Grid DockPanel.Dock="Top" 
+              Height="25"
+              Margin="0,0,0,5">
+            <ProgressBar Minimum="0" 
+                         Maximum="100" 
+                         Value="0" 
+                         Name="progressBar" 
+                         Grid.ColumnSpan="2"/>
+            <TextBlock Text="{Binding ElementName=progressBar, Path=Value, StringFormat={}{0:0}%}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" 
+                       Grid.Column="1"/>
         </Grid>
         <TextBox Name="infoBox"
                  DockPanel.Dock="Top"
                  IsReadOnly="True"
                  ScrollViewer.VerticalScrollBarVisibility="Auto" 
                  TextWrapping="Wrap"
-                 TextChanged="TextListener"/>
+                 TextChanged="TextListener"
+                 Text="Description of the options:&#x0a;1- Select input files - Select specific .vsd files.&#x0a;2- Select input folder - Search recursively for all the .vsd files inside a folder.&#x0a;3- Select output folder (optional) - Select the folder where all the converted .vsdx files will be saved. If no output folder is selected, the files will be stored next to the input file (.vsd).&#x0a;4- Convert - Run the conversion process&#x0a;&#x0a;Please note: &#x0a;The options 1 and 2 are mutually exclusive, you can select one or the other, but not both.&#x0a;Any existing .vsdx file in the output location (default or selected by the user) will be overwritten.&#x0a;">
+        </TextBox>
     </DockPanel>
 </Window>
